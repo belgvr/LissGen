@@ -12,9 +12,8 @@
 #include <fstream>
 #include <sstream>
 #include <string>
-#include <cctype> // For toupper
+#include <cctype>
 
-// Added for native Windows dialog boxes
 #ifdef _WIN32
 #define _CRT_SECURE_NO_WARNINGS
 #include <windows.h>
@@ -27,7 +26,6 @@
 #define BUFFER_SIZE 4096
 #define PI 3.14159265358979323846
 
-// Shaders
 const char* vertexShaderSource = R"(#version 330 core
     layout (location = 0) in vec2 aPos; layout (location = 1) in vec4 aColor;
     out vec4 vertexColor; uniform mat4 projection;
@@ -36,19 +34,13 @@ const char* fragmentShaderSource = R"(#version 330 core
     out vec4 FragColor; in vec4 vertexColor;
     void main() { FragColor = vertexColor; })";
 
-// --- DATA STRUCTURES ---
-enum WaveType {
-    SINE,
-    SQUARE,
-    SAWTOOTH
-};
+enum WaveType { SINE, SQUARE, SAWTOOTH };
 
 struct FrequencyRow {
     float freq;
     bool muted;
     double phase = 0.0;
     WaveType type = SINE;
-
     FrequencyRow(float f) : freq(f), muted(false) {}
 };
 
@@ -78,17 +70,14 @@ struct AudioState {
     char waveTextBuffer[2048] = { 0 };
     std::string parseErrorMsg;
     bool waveDataIsDirty = true;
-    bool showHelpWindow = false; // Flag for the help window
+    bool showHelpWindow = false;
 };
 
-// Struct for the Drag and Drop payload
 struct DragPayload {
     int sourceIndex;
-    char sourceChannel; // 'L' or 'R'
+    char sourceChannel;
 };
 
-
-// --- FUNCTION PROTOTYPES ---
 void saveWaveToFile(const std::string& path, AudioState& state);
 void loadWaveFromFile(const std::string& path, AudioState& state);
 void savePlaylistToFile(const std::string& path, AudioState& state);
@@ -105,8 +94,6 @@ std::string openFileDialog(const char* filter, const char* defExt);
 std::string saveFileDialog(const char* filter, const char* defExt);
 #endif
 
-// --- MAIN FUNCTION ---
-// --- MAIN FUNCTION ---
 int main(int argc, char* argv[]) {
     SDL_Init(SDL_INIT_VIDEO);
     SDL_GL_SetAttribute(SDL_GL_CONTEXT_FLAGS, 0); SDL_GL_SetAttribute(SDL_GL_CONTEXT_PROFILE_MASK, SDL_GL_CONTEXT_PROFILE_CORE); SDL_GL_SetAttribute(SDL_GL_CONTEXT_MAJOR_VERSION, 3); SDL_GL_SetAttribute(SDL_GL_CONTEXT_MINOR_VERSION, 3); SDL_GL_SetAttribute(SDL_GL_DOUBLEBUFFER, 1); SDL_GL_SetAttribute(SDL_GL_DEPTH_SIZE, 24); SDL_GL_SetAttribute(SDL_GL_STENCIL_SIZE, 8);
@@ -153,7 +140,6 @@ int main(int argc, char* argv[]) {
 
         ImGui_ImplOpenGL3_NewFrame(); ImGui_ImplSDL2_NewFrame(); ImGui::NewFrame();
 
-        // --- HELP WINDOW ---
         if (state.showHelpWindow) {
             ImGui::Begin("Help and Credits", &state.showHelpWindow);
             ImGui::TextWrapped("This is an audio and visual generator based on Lissajous Curves.");
@@ -164,6 +150,7 @@ int main(int argc, char* argv[]) {
                 ImGui::BulletText("Step: Shows the frequency increment. Hold Shift (0.1) or Ctrl+Shift (0.01) for fine-tuning.");
             }
             if (ImGui::CollapsingHeader("Frequency Channels (L and R)")) {
+                ImGui::BulletText("Bulk operations (+ All, - All, x2 All, /2 All): Apply operation to ALL frequencies in that channel.");
                 ImGui::BulletText("Controls (+, -, x2, /2): Change the row's frequency.");
                 ImGui::BulletText("Waveform Buttons (S, Q, W): Select the waveform type: (S)ine, (Q)uare, or sa(W)tooth.");
                 ImGui::BulletText("M: Mutes only the frequency of that row.");
@@ -193,7 +180,6 @@ int main(int argc, char* argv[]) {
             ImGui::End();
         }
 
-        // --- MAIN CONTROLS WINDOW ---
         ImGui::SetNextWindowPos(ImVec2(10, 10), ImGuiCond_FirstUseEver);
         ImGui::SetNextWindowSize(ImVec2(600, 830), ImGuiCond_FirstUseEver);
         ImGui::Begin("Controls", nullptr, ImGuiWindowFlags_NoCollapse);
@@ -220,22 +206,58 @@ int main(int argc, char* argv[]) {
 
         ImGui::Separator();
 
-        // --- L CHANNEL ---
-        if (ImGui::CollapsingHeader("Left Channel (X)", ImGuiTreeNodeFlags_DefaultOpen)) {
-            if (ImGui::BeginDragDropTarget()) {
-                if (const ImGuiPayload* payload = ImGui::AcceptDragDropPayload("FREQ_ROW")) {
-                    const DragPayload& payload_n = *(const DragPayload*)payload->Data;
-                    if (payload_n.sourceChannel == 'R') {
-                        state.channelL.push_back(state.channelR[payload_n.sourceIndex]);
-                        if (!state.shiftPressed) { state.channelR.erase(state.channelR.begin() + payload_n.sourceIndex); }
-                        state.waveDataIsDirty = true;
-                    }
+        // LEFT CHANNEL
+        bool leftHeaderOpen = ImGui::CollapsingHeader("Left Channel (X)", ImGuiTreeNodeFlags_DefaultOpen);
+
+        // Drop target for the LEFT header (always active)
+        if (ImGui::BeginDragDropTarget()) {
+            if (const ImGuiPayload* payload = ImGui::AcceptDragDropPayload("FREQ_ROW")) {
+                const DragPayload& payload_n = *(const DragPayload*)payload->Data;
+                if (payload_n.sourceChannel == 'R') {
+                    state.channelL.push_back(state.channelR[payload_n.sourceIndex]);
+                    if (!state.shiftPressed) { state.channelR.erase(state.channelR.begin() + payload_n.sourceIndex); }
+                    state.waveDataIsDirty = true;
                 }
-                ImGui::EndDragDropTarget();
             }
+            ImGui::EndDragDropTarget();
+        }
+
+        // Bulk operations OUTSIDE collapsing header
+        ImGui::PushStyleColor(ImGuiCol_Button, ImVec4(0.3f, 0.3f, 0.5f, 1.0f));
+        ImGui::PushStyleColor(ImGuiCol_ButtonHovered, ImVec4(0.4f, 0.4f, 0.6f, 1.0f));
+        ImGui::PushStyleColor(ImGuiCol_ButtonActive, ImVec4(0.25f, 0.25f, 0.45f, 1.0f));
+
+        if (ImGui::Button("+ All##L", ImVec2(60, 0))) {
+            for (auto& row : state.channelL) row.freq += getStep(state.shiftPressed, state.ctrlPressed);
+            state.waveDataIsDirty = true;
+        }
+        if (ImGui::IsItemHovered()) ImGui::SetTooltip("Add step to ALL frequencies in Left channel");
+
+        ImGui::SameLine();
+        if (ImGui::Button("- All##L", ImVec2(60, 0))) {
+            for (auto& row : state.channelL) row.freq -= getStep(state.shiftPressed, state.ctrlPressed);
+            state.waveDataIsDirty = true;
+        }
+        if (ImGui::IsItemHovered()) ImGui::SetTooltip("Subtract step from ALL frequencies in Left channel");
+
+        ImGui::SameLine();
+        if (ImGui::Button("x2 All##L", ImVec2(60, 0))) {
+            for (auto& row : state.channelL) row.freq *= 2.0f;
+            state.waveDataIsDirty = true;
+        }
+        if (ImGui::IsItemHovered()) ImGui::SetTooltip("Multiply ALL frequencies by 2 (up one octave)");
+
+        ImGui::SameLine();
+        if (ImGui::Button("/2 All##L", ImVec2(60, 0))) {
+            for (auto& row : state.channelL) row.freq /= 2.0f;
+            state.waveDataIsDirty = true;
+        }
+        if (ImGui::IsItemHovered()) ImGui::SetTooltip("Divide ALL frequencies by 2 (down one octave)");
+        ImGui::PopStyleColor(3);
+
+        if (leftHeaderOpen) {
             for (int i = 0; i < (int)state.channelL.size(); i++) {
                 ImGui::PushID(i);
-
                 ImGui::Button(":::");
                 if (ImGui::IsItemHovered()) ImGui::SetTooltip("Drag to reorder in the same channel.\nDrag to the other channel's header to move.\nHold SHIFT while dragging to copy it to the opposite channel");
                 if (ImGui::BeginDragDropSource(ImGuiDragDropFlags_None)) {
@@ -244,7 +266,6 @@ int main(int argc, char* argv[]) {
                     ImGui::Text("Move %.2f Hz (%c)", state.channelL[i].freq, "SQW"[(int)state.channelL[i].type]);
                     ImGui::EndDragDropSource();
                 }
-
                 if (ImGui::BeginDragDropTarget()) {
                     if (const ImGuiPayload* payload = ImGui::AcceptDragDropPayload("FREQ_ROW")) {
                         const DragPayload& payload_n = *(const DragPayload*)payload->Data;
@@ -257,64 +278,52 @@ int main(int argc, char* argv[]) {
                     }
                     ImGui::EndDragDropTarget();
                 }
-
                 ImGui::SameLine(); ImGui::SetNextItemWidth(80);
                 if (ImGui::InputFloat("Hz", &state.channelL[i].freq, 0.0f, 0.0f, "%.3f")) state.waveDataIsDirty = true;
                 if (ImGui::IsItemHovered()) ImGui::SetTooltip("Frequency in Hertz for this oscillator.");
-
                 ImGui::SameLine();
                 if (ImGui::Button("+")) { state.channelL[i].freq += getStep(state.shiftPressed, state.ctrlPressed); state.waveDataIsDirty = true; }
                 if (ImGui::IsItemHovered()) ImGui::SetTooltip("Increase frequency by the Step value.\nHold Shift or Ctrl+Shift for fine tuning.");
-
                 ImGui::SameLine();
                 if (ImGui::Button("-")) { state.channelL[i].freq -= getStep(state.shiftPressed, state.ctrlPressed); state.waveDataIsDirty = true; }
                 if (ImGui::IsItemHovered()) ImGui::SetTooltip("Decrease frequency by the Step value.\nHold Shift or Ctrl+Shift for fine tuning.");
-
                 ImGui::SameLine();
                 if (ImGui::Button("x2")) { state.channelL[i].freq *= 2.0f; state.waveDataIsDirty = true; }
                 if (ImGui::IsItemHovered()) ImGui::SetTooltip("Multiply frequency by 2 (goes up one octave).");
-
                 ImGui::SameLine();
                 if (ImGui::Button("/2")) { state.channelL[i].freq /= 2.0f; state.waveDataIsDirty = true; }
                 if (ImGui::IsItemHovered()) ImGui::SetTooltip("Divide frequency by 2 (goes down one octave).");
-
                 ImGui::SameLine();
                 bool isSine = state.channelL[i].type == SINE;
                 if (isSine) ImGui::PushStyleColor(ImGuiCol_Button, ImVec4(0.2f, 0.6f, 0.2f, 1.0f));
                 if (ImGui::Button("S")) { state.channelL[i].type = SINE; state.waveDataIsDirty = true; }
                 if (ImGui::IsItemHovered()) ImGui::SetTooltip("Set waveform to Sine.");
                 if (isSine) ImGui::PopStyleColor();
-
                 ImGui::SameLine(0, 2);
                 bool isSquare = state.channelL[i].type == SQUARE;
                 if (isSquare) ImGui::PushStyleColor(ImGuiCol_Button, ImVec4(0.6f, 0.2f, 0.2f, 1.0f));
                 if (ImGui::Button("Q")) { state.channelL[i].type = SQUARE; state.waveDataIsDirty = true; }
                 if (ImGui::IsItemHovered()) ImGui::SetTooltip("Set waveform to Square.");
                 if (isSquare) ImGui::PopStyleColor();
-
                 ImGui::SameLine(0, 2);
                 bool isSaw = state.channelL[i].type == SAWTOOTH;
                 if (isSaw) ImGui::PushStyleColor(ImGuiCol_Button, ImVec4(0.2f, 0.2f, 0.6f, 1.0f));
                 if (ImGui::Button("W")) { state.channelL[i].type = SAWTOOTH; state.waveDataIsDirty = true; }
                 if (ImGui::IsItemHovered()) ImGui::SetTooltip("Set waveform to Sawtooth.");
                 if (isSaw) ImGui::PopStyleColor();
-
                 ImGui::SameLine();
                 if (ImGui::Checkbox("M", &state.channelL[i].muted)) state.waveDataIsDirty = true;
                 if (ImGui::IsItemHovered()) ImGui::SetTooltip("Mute only this frequency.");
-
                 ImGui::SameLine();
                 ImGui::PushStyleColor(ImGuiCol_Button, ImVec4(50 / 255.0f, 130 / 255.0f, 0 / 255.0f, 1.0f));
                 if (ImGui::Button("D")) { state.channelL.insert(state.channelL.begin() + i + 1, state.channelL[i]); state.waveDataIsDirty = true; ImGui::PopStyleColor(); ImGui::PopID(); break; }
                 if (ImGui::IsItemHovered()) ImGui::SetTooltip("Duplicate this frequency row.");
                 ImGui::PopStyleColor();
-
                 ImGui::SameLine();
                 ImGui::PushStyleColor(ImGuiCol_Button, ImVec4(0.6f, 0.2f, 0.2f, 1.0f));
                 if (ImGui::Button("X")) { state.channelL.erase(state.channelL.begin() + i); state.waveDataIsDirty = true; ImGui::PopStyleColor(); ImGui::PopID(); break; }
                 if (ImGui::IsItemHovered()) ImGui::SetTooltip("Remove this frequency row.");
                 ImGui::PopStyleColor();
-
                 ImGui::PopID();
             }
             if (ImGui::Button("+ Add Frequency##L")) { state.channelL.push_back(FrequencyRow(440.0f)); state.waveDataIsDirty = true; }
@@ -322,22 +331,58 @@ int main(int argc, char* argv[]) {
         }
         ImGui::Separator();
 
-        // --- R CHANNEL ---
-        if (ImGui::CollapsingHeader("Right Channel (Y)", ImGuiTreeNodeFlags_DefaultOpen)) {
-            if (ImGui::BeginDragDropTarget()) {
-                if (const ImGuiPayload* payload = ImGui::AcceptDragDropPayload("FREQ_ROW")) {
-                    const DragPayload& payload_n = *(const DragPayload*)payload->Data;
-                    if (payload_n.sourceChannel == 'L') {
-                        state.channelR.push_back(state.channelL[payload_n.sourceIndex]);
-                        if (!state.shiftPressed) { state.channelL.erase(state.channelL.begin() + payload_n.sourceIndex); }
-                        state.waveDataIsDirty = true;
-                    }
+        // RIGHT CHANNEL
+        bool rightHeaderOpen = ImGui::CollapsingHeader("Right Channel (Y)", ImGuiTreeNodeFlags_DefaultOpen);
+
+        // Drop target for the RIGHT header (always active)
+        if (ImGui::BeginDragDropTarget()) {
+            if (const ImGuiPayload* payload = ImGui::AcceptDragDropPayload("FREQ_ROW")) {
+                const DragPayload& payload_n = *(const DragPayload*)payload->Data;
+                if (payload_n.sourceChannel == 'L') {
+                    state.channelR.push_back(state.channelL[payload_n.sourceIndex]);
+                    if (!state.shiftPressed) { state.channelL.erase(state.channelL.begin() + payload_n.sourceIndex); }
+                    state.waveDataIsDirty = true;
                 }
-                ImGui::EndDragDropTarget();
             }
+            ImGui::EndDragDropTarget();
+        }
+
+        // Bulk operations OUTSIDE collapsing header
+        ImGui::PushStyleColor(ImGuiCol_Button, ImVec4(0.5f, 0.3f, 0.3f, 1.0f));
+        ImGui::PushStyleColor(ImGuiCol_ButtonHovered, ImVec4(0.6f, 0.4f, 0.4f, 1.0f));
+        ImGui::PushStyleColor(ImGuiCol_ButtonActive, ImVec4(0.45f, 0.25f, 0.25f, 1.0f));
+
+        if (ImGui::Button("+ All##R", ImVec2(60, 0))) {
+            for (auto& row : state.channelR) row.freq += getStep(state.shiftPressed, state.ctrlPressed);
+            state.waveDataIsDirty = true;
+        }
+        if (ImGui::IsItemHovered()) ImGui::SetTooltip("Add step to ALL frequencies in Right channel");
+
+        ImGui::SameLine();
+        if (ImGui::Button("- All##R", ImVec2(60, 0))) {
+            for (auto& row : state.channelR) row.freq -= getStep(state.shiftPressed, state.ctrlPressed);
+            state.waveDataIsDirty = true;
+        }
+        if (ImGui::IsItemHovered()) ImGui::SetTooltip("Subtract step from ALL frequencies in Right channel");
+
+        ImGui::SameLine();
+        if (ImGui::Button("x2 All##R", ImVec2(60, 0))) {
+            for (auto& row : state.channelR) row.freq *= 2.0f;
+            state.waveDataIsDirty = true;
+        }
+        if (ImGui::IsItemHovered()) ImGui::SetTooltip("Multiply ALL frequencies by 2 (up one octave)");
+
+        ImGui::SameLine();
+        if (ImGui::Button("/2 All##R", ImVec2(60, 0))) {
+            for (auto& row : state.channelR) row.freq /= 2.0f;
+            state.waveDataIsDirty = true;
+        }
+        if (ImGui::IsItemHovered()) ImGui::SetTooltip("Divide ALL frequencies by 2 (down one octave)");
+        ImGui::PopStyleColor(3);
+
+        if (rightHeaderOpen) {
             for (int i = 0; i < (int)state.channelR.size(); i++) {
                 ImGui::PushID(1000 + i);
-
                 ImGui::Button(":::");
                 if (ImGui::IsItemHovered()) ImGui::SetTooltip("Drag to reorder in the same channel.\nDrag to the other channel's header to move.\nHold SHIFT while dropping to clone.");
                 if (ImGui::BeginDragDropSource(ImGuiDragDropFlags_None)) {
@@ -346,7 +391,6 @@ int main(int argc, char* argv[]) {
                     ImGui::Text("Move %.2f Hz (%c)", state.channelR[i].freq, "SQW"[(int)state.channelR[i].type]);
                     ImGui::EndDragDropSource();
                 }
-
                 if (ImGui::BeginDragDropTarget()) {
                     if (const ImGuiPayload* payload = ImGui::AcceptDragDropPayload("FREQ_ROW")) {
                         const DragPayload& payload_n = *(const DragPayload*)payload->Data;
@@ -359,64 +403,52 @@ int main(int argc, char* argv[]) {
                     }
                     ImGui::EndDragDropTarget();
                 }
-
                 ImGui::SameLine(); ImGui::SetNextItemWidth(80);
                 if (ImGui::InputFloat("Hz", &state.channelR[i].freq, 0.0f, 0.0f, "%.3f")) state.waveDataIsDirty = true;
                 if (ImGui::IsItemHovered()) ImGui::SetTooltip("Frequency in Hertz for this oscillator.");
-
                 ImGui::SameLine();
                 if (ImGui::Button("+")) { state.channelR[i].freq += getStep(state.shiftPressed, state.ctrlPressed); state.waveDataIsDirty = true; }
                 if (ImGui::IsItemHovered()) ImGui::SetTooltip("Increase frequency by the Step value.\nHold Shift or Ctrl+Shift for fine tuning.");
-
                 ImGui::SameLine();
                 if (ImGui::Button("-")) { state.channelR[i].freq -= getStep(state.shiftPressed, state.ctrlPressed); state.waveDataIsDirty = true; }
                 if (ImGui::IsItemHovered()) ImGui::SetTooltip("Decrease frequency by the Step value.\nHold Shift or Ctrl+Shift for fine tuning.");
-
                 ImGui::SameLine();
                 if (ImGui::Button("x2")) { state.channelR[i].freq *= 2.0f; state.waveDataIsDirty = true; }
                 if (ImGui::IsItemHovered()) ImGui::SetTooltip("Multiply frequency by 2 (goes up one octave).");
-
                 ImGui::SameLine();
                 if (ImGui::Button("/2")) { state.channelR[i].freq /= 2.0f; state.waveDataIsDirty = true; }
                 if (ImGui::IsItemHovered()) ImGui::SetTooltip("Divide frequency by 2 (goes down one octave).");
-
                 ImGui::SameLine();
                 bool isSine = state.channelR[i].type == SINE;
                 if (isSine) ImGui::PushStyleColor(ImGuiCol_Button, ImVec4(0.2f, 0.6f, 0.2f, 1.0f));
                 if (ImGui::Button("S")) { state.channelR[i].type = SINE; state.waveDataIsDirty = true; }
                 if (ImGui::IsItemHovered()) ImGui::SetTooltip("Set waveform to Sine.");
                 if (isSine) ImGui::PopStyleColor();
-
                 ImGui::SameLine(0, 2);
                 bool isSquare = state.channelR[i].type == SQUARE;
                 if (isSquare) ImGui::PushStyleColor(ImGuiCol_Button, ImVec4(0.6f, 0.2f, 0.2f, 1.0f));
                 if (ImGui::Button("Q")) { state.channelR[i].type = SQUARE; state.waveDataIsDirty = true; }
                 if (ImGui::IsItemHovered()) ImGui::SetTooltip("Set waveform to Square.");
                 if (isSquare) ImGui::PopStyleColor();
-
                 ImGui::SameLine(0, 2);
                 bool isSaw = state.channelR[i].type == SAWTOOTH;
                 if (isSaw) ImGui::PushStyleColor(ImGuiCol_Button, ImVec4(0.2f, 0.2f, 0.6f, 1.0f));
                 if (ImGui::Button("W")) { state.channelR[i].type = SAWTOOTH; state.waveDataIsDirty = true; }
                 if (ImGui::IsItemHovered()) ImGui::SetTooltip("Set waveform to Sawtooth.");
                 if (isSaw) ImGui::PopStyleColor();
-
                 ImGui::SameLine();
                 if (ImGui::Checkbox("M", &state.channelR[i].muted)) state.waveDataIsDirty = true;
                 if (ImGui::IsItemHovered()) ImGui::SetTooltip("Mute only this frequency.");
-
                 ImGui::SameLine();
                 ImGui::PushStyleColor(ImGuiCol_Button, ImVec4(50 / 255.0f, 130 / 255.0f, 0 / 255.0f, 1.0f));
                 if (ImGui::Button("D")) { state.channelR.insert(state.channelR.begin() + i + 1, state.channelR[i]); state.waveDataIsDirty = true; ImGui::PopStyleColor(); ImGui::PopID(); break; }
                 if (ImGui::IsItemHovered()) ImGui::SetTooltip("Duplicate this frequency row.");
                 ImGui::PopStyleColor();
-
                 ImGui::SameLine();
                 ImGui::PushStyleColor(ImGuiCol_Button, ImVec4(0.6f, 0.2f, 0.2f, 1.0f));
                 if (ImGui::Button("X")) { state.channelR.erase(state.channelR.begin() + i); state.waveDataIsDirty = true; ImGui::PopStyleColor(); ImGui::PopID(); break; }
                 if (ImGui::IsItemHovered()) ImGui::SetTooltip("Remove this frequency row.");
                 ImGui::PopStyleColor();
-
                 ImGui::PopID();
             }
             if (ImGui::Button("+ Add Frequency##R")) { state.channelR.push_back(FrequencyRow(440.0f)); state.waveDataIsDirty = true; }
@@ -589,8 +621,6 @@ int main(int argc, char* argv[]) {
     SDL_GL_DeleteContext(gl_context); SDL_DestroyWindow(window); SDL_Quit();
     return 0;
 }
-
-// --- HELPER FUNCTION IMPLEMENTATIONS ---
 
 #ifdef _WIN32
 std::string openFileDialog(const char* filter, const char* defExt) {
@@ -766,7 +796,9 @@ bool parseTextBufferToWave(AudioState& state) {
 GLuint createShaderProgram() {
     GLuint vertexShader = glCreateShader(GL_VERTEX_SHADER); glShaderSource(vertexShader, 1, &vertexShaderSource, NULL); glCompileShader(vertexShader);
     int success; char infoLog[512]; glGetShaderiv(vertexShader, GL_COMPILE_STATUS, &success);
-    if (!success) { glGetShaderInfoLog(vertexShader, 512, NULL, infoLog); std::cerr << "ERROR::SHADER::VERTEX::COMPILATION_FAILED\n" << infoLog << std::endl; }
+    if (!success) {
+        glGetShaderInfoLog(vertexShader, 512, NULL, infoLog); std::cerr << "ERROR::SHADER::VERTEX::COMPILATION_FAILED\n" << infoLog << std::endl;
+    }
     GLuint fragmentShader = glCreateShader(GL_FRAGMENT_SHADER); glShaderSource(fragmentShader, 1, &fragmentShaderSource, NULL); glCompileShader(fragmentShader);
     glGetShaderiv(fragmentShader, GL_COMPILE_STATUS, &success);
     if (!success) { glGetShaderInfoLog(fragmentShader, 512, NULL, infoLog); std::cerr << "ERROR::SHADER::FRAGMENT::COMPILATION_FAILED\n" << infoLog << std::endl; }
