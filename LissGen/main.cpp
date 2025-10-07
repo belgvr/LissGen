@@ -60,7 +60,7 @@ struct AudioState {
     std::mutex bufferMutex;
     int trailPercent = 100, targetFPS = 240;
     bool running = false, shiftPressed = false, ctrlPressed = false;
-    bool showStartEndPoints = true, audioMuted = false;
+    bool showStartEndPoints = false, audioMuted = false;
     std::vector<PlaylistItem> playlist;
     int currentPlaylistItem = -1;
     float playlistTimer = 0.0f;
@@ -104,7 +104,7 @@ int main(int argc, char* argv[]) {
     style.WindowRounding = 8.0f; style.FrameRounding = 4.0f; style.GrabRounding = 4.0f; style.WindowBorderSize = 0.0f; style.FrameBorderSize = 0.0f;
     ImVec4* colors = style.Colors; colors[ImGuiCol_WindowBg] = ImVec4(0.08f, 0.08f, 0.12f, 0.95f); colors[ImGuiCol_Border] = ImVec4(0.2f, 0.3f, 0.4f, 0.5f); colors[ImGuiCol_FrameBg] = ImVec4(0.12f, 0.14f, 0.18f, 1.0f); colors[ImGuiCol_FrameBgHovered] = ImVec4(0.18f, 0.22f, 0.28f, 1.0f); colors[ImGuiCol_FrameBgActive] = ImVec4(0.15f, 0.20f, 0.25f, 1.0f); colors[ImGuiCol_TitleBg] = ImVec4(0.10f, 0.12f, 0.16f, 1.0f); colors[ImGuiCol_TitleBgActive] = ImVec4(0.12f, 0.18f, 0.24f, 1.0f); colors[ImGuiCol_Button] = ImVec4(0.15f, 0.30f, 0.45f, 1.0f); colors[ImGuiCol_ButtonHovered] = ImVec4(0.20f, 0.40f, 0.60f, 1.0f); colors[ImGuiCol_ButtonActive] = ImVec4(0.10f, 0.25f, 0.40f, 1.0f); colors[ImGuiCol_SliderGrab] = ImVec4(0.20f, 0.50f, 0.80f, 1.0f); colors[ImGuiCol_SliderGrabActive] = ImVec4(0.30f, 0.60f, 0.90f, 1.0f); colors[ImGuiCol_Header] = ImVec4(0.15f, 0.30f, 0.45f, 1.0f); colors[ImGuiCol_HeaderHovered] = ImVec4(0.20f, 0.40f, 0.60f, 1.0f); colors[ImGuiCol_HeaderActive] = ImVec4(0.15f, 0.35f, 0.55f, 1.0f);
     ImGui_ImplSDL2_InitForOpenGL(window, gl_context); ImGui_ImplOpenGL3_Init("#version 330");
-    AudioState state; state.channelL.push_back(FrequencyRow(440.0f)); state.channelR.push_back(FrequencyRow(440.0f));
+    AudioState state; state.channelL.push_back(FrequencyRow(60.0f)); state.channelR.push_back(FrequencyRow(61.0f));
     Pa_Initialize(); PaStream* stream;
     Pa_OpenDefaultStream(&stream, 0, 2, paFloat32, SAMPLE_RATE, FRAMES_PER_BUFFER, audioCallback, &state);
     GLuint shaderProgram = createShaderProgram(); GLuint vao, vbo;
